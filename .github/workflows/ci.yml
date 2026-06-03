@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   ci:
-    runs-on: [self-hosted, Linux, X64]
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions-rust-lang/setup-rust-toolchain@v1
@@ -26,3 +26,6 @@ jobs:
         run: cargo clippy --workspace --all-targets -- -D warnings
       - name: Voice guard
         run: bash scripts/public_voice_guard.sh
+      - uses: taiki-e/install-action@cargo-llvm-cov
+      - name: Coverage
+        run: cargo llvm-cov --workspace --all-targets --fail-under-lines 80

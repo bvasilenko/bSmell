@@ -2,6 +2,7 @@ use assert_cmd::Command;
 use bsmell::SmellCategory;
 use predicates::prelude::*;
 use serde_json::Value;
+use std::collections::BTreeSet;
 
 fn bsmell_command() -> Command {
     Command::cargo_bin("bsmell").expect("binary exists")
@@ -22,6 +23,18 @@ fn scan_json(args: &[&str]) -> Value {
     let stdout = successful_stdout(args);
 
     serde_json::from_str(stdout.trim()).expect("scan json output is valid json")
+}
+
+fn assert_object_keys(value: &Value, expected_keys: &[&str]) {
+    let actual_keys = value
+        .as_object()
+        .expect("value is a json object")
+        .keys()
+        .map(String::as_str)
+        .collect::<BTreeSet<_>>();
+    let expected_keys = expected_keys.iter().copied().collect::<BTreeSet<_>>();
+
+    assert_eq!(expected_keys, actual_keys);
 }
 
 fn assert_usage_failure(args: &[&str], stderr_fragment: &str) {
@@ -80,6 +93,11 @@ fn scan_text_placeholder_declares_detection_deferred_and_not_run() {
 fn scan_json_placeholder_has_stable_schema_and_not_run_verdict() {
     let json = scan_json(&["scan", "--json", "--reason", "review requested"]);
 
+    assert_object_keys(
+        &json,
+        &["detection", "inputs", "reason", "routing_key", "status"],
+    );
+    assert_object_keys(&json["inputs"], &["diff", "session"]);
     assert_eq!(json["status"], "placeholder");
     assert_eq!(json["routing_key"], "bsmell");
     assert_eq!(json["detection"], "not-run");
@@ -139,6 +157,20 @@ fn scan_rejects_blank_reason() {
             .assert()
             .code(64)
             .stderr(predicate::str::contains("reason must not be empty"));
+    }
+}
+
+#[test]
+fn scan_accepts_every_non_blank_reason_shape_without_running_detection() {
+    for reason in [
+        "review requested",
+        " review requested ",
+        "review\trequested",
+    ] {
+        let json = scan_json(&["scan", "--json", "--reason", reason]);
+
+        assert_eq!(json["detection"], "not-run");
+        assert_eq!(json["reason"], "detection behavior is deferred");
     }
 }
 
