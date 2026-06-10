@@ -33,6 +33,16 @@ impl InvocationSurface {
             Self::L2bDirectus => "l2b-directus",
         }
     }
+
+    pub const fn public_label(self) -> &'static str {
+        match self {
+            Self::L2aCli => "cli",
+            Self::L2bPayload => "payload",
+            Self::L2bStrapi => "strapi",
+            Self::L2bSanity => "sanity",
+            Self::L2bDirectus => "directus",
+        }
+    }
 }
 
 impl fmt::Display for InvocationSurface {

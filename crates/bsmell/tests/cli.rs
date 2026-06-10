@@ -1,40 +1,50 @@
 use assert_cmd::Command;
 use bsmell::SmellCategory;
 use predicates::prelude::*;
-use serde_json::Value;
-use std::collections::BTreeSet;
+
+const PLACEHOLDER_DIRECTIVE_HEADER: &str = "[bsmell placeholder directive - pre-corpus output]";
+const ACTION_PREFIX: &str = "ACTION: This invocation reached bsmell";
+const EXIT_CODE_FOOTER: &str = "Exit code carries the verdict-class signal.";
+const PUBLIC_INVOCATION_SURFACE_LINE: &str = "Invocation surface: cli.";
+const INTERNAL_SURFACE_TOKENS: [&str; 6] = ["L2a", "L2b", "L2c", "l2a", "l2b", "l2c"];
+const SCAN_FINDING_EXIT_CODE: i32 = 1;
+
+#[derive(Debug, Clone, Copy)]
+struct ScanCase<'a> {
+    args: &'a [&'a str],
+    expected_input: &'a str,
+}
+
+impl ScanCase<'_> {
+    fn assert(self) {
+        let stdout = scan_stdout(self.args);
+
+        assert_scan_directive(&stdout);
+        assert!(stdout.contains(self.expected_input));
+    }
+}
 
 fn bsmell_command() -> Command {
     Command::cargo_bin("bsmell").expect("binary exists")
 }
 
-fn successful_stdout(args: &[&str]) -> String {
+fn command_stdout_with_code(args: &[&str], code: i32) -> String {
     let output = bsmell_command()
         .args(args)
         .assert()
-        .success()
+        .code(code)
         .get_output()
         .clone();
 
     String::from_utf8(output.stdout).expect("stdout is utf8")
 }
 
-fn scan_json(args: &[&str]) -> Value {
-    let stdout = successful_stdout(args);
-
-    serde_json::from_str(stdout.trim()).expect("scan json output is valid json")
+fn scan_stdout(args: &[&str]) -> String {
+    command_stdout_with_code(args, SCAN_FINDING_EXIT_CODE)
 }
 
-fn assert_object_keys(value: &Value, expected_keys: &[&str]) {
-    let actual_keys = value
-        .as_object()
-        .expect("value is a json object")
-        .keys()
-        .map(String::as_str)
-        .collect::<BTreeSet<_>>();
-    let expected_keys = expected_keys.iter().copied().collect::<BTreeSet<_>>();
-
-    assert_eq!(expected_keys, actual_keys);
+fn successful_stdout(args: &[&str]) -> String {
+    command_stdout_with_code(args, 0)
 }
 
 fn assert_usage_failure(args: &[&str], stderr_fragment: &str) {
@@ -43,6 +53,30 @@ fn assert_usage_failure(args: &[&str], stderr_fragment: &str) {
         .assert()
         .code(64)
         .stderr(predicate::str::contains(stderr_fragment));
+}
+
+fn assert_scan_directive(stdout: &str) {
+    assert!(stdout.contains(PLACEHOLDER_DIRECTIVE_HEADER));
+    assert!(stdout.contains("Parsed input: session="));
+    assert!(stdout.contains("diff="));
+    assert!(stdout.contains("Routing key: SmellCategory::"));
+    assert!(stdout.contains(" placeholder route."));
+    assert!(stdout.contains(PUBLIC_INVOCATION_SURFACE_LINE));
+    assert!(stdout.contains("Evidence-state: SmellDetected."));
+    assert!(stdout.contains(ACTION_PREFIX));
+    assert!(stdout.contains("deflection pattern "));
+    assert!(stdout.contains("re-anchoring on the underlying task"));
+    assert!(stdout.contains(EXIT_CODE_FOOTER));
+    assert!(!stdout.contains("detection behavior is deferred"));
+    assert!(!stdout.contains("detection=not-run"));
+    assert!(!stdout.contains("\"detection\":\"not-run\""));
+    assert_no_internal_surface_tokens(stdout);
+}
+
+fn assert_no_internal_surface_tokens(stdout: &str) {
+    for token in INTERNAL_SURFACE_TOKENS {
+        assert!(!stdout.contains(token), "stdout leaked {token}: {stdout}");
+    }
 }
 
 fn deferred_command_output(command_name: &str) -> String {
@@ -80,72 +114,59 @@ fn placeholder_commands_exit_successfully_with_stable_output() {
 }
 
 #[test]
-fn scan_text_placeholder_declares_detection_deferred_and_not_run() {
-    let stdout = successful_stdout(&["scan", "--reason", "review requested"]);
-
-    assert_eq!(
-        "bsmell scan placeholder: detection behavior is deferred; detection=not-run.\n",
-        stdout
-    );
+fn scan_emits_placeholder_directive_and_finding_exit_code() {
+    ScanCase {
+        args: &["scan", "--reason", "review requested"],
+        expected_input: "session=<none>, diff=<none>",
+    }
+    .assert();
 }
 
 #[test]
-fn scan_json_placeholder_has_stable_schema_and_not_run_verdict() {
-    let json = scan_json(&["scan", "--json", "--reason", "review requested"]);
-
-    assert_object_keys(
-        &json,
-        &["detection", "inputs", "reason", "routing_key", "status"],
-    );
-    assert_object_keys(&json["inputs"], &["diff", "session"]);
-    assert_eq!(json["status"], "placeholder");
-    assert_eq!(json["routing_key"], "bsmell");
-    assert_eq!(json["detection"], "not-run");
-    assert_eq!(json["reason"], "detection behavior is deferred");
-    assert_eq!(json["inputs"]["session"], false);
-    assert_eq!(json["inputs"]["diff"], false);
-}
-
-#[test]
-fn scan_quiet_mode_suppresses_placeholder_output_for_every_output_format() {
-    for args in [
-        &["scan", "--quiet", "--reason", "review requested"][..],
-        &["scan", "--quiet", "--json", "--reason", "review requested"][..],
+fn scan_directive_reports_every_supported_input_combination() {
+    for scan_case in [
+        ScanCase {
+            args: &["scan"],
+            expected_input: "session=<none>, diff=<none>",
+        },
+        ScanCase {
+            args: &["scan", "--session", "./Cargo.toml"],
+            expected_input: "session=./Cargo.toml, diff=<none>",
+        },
+        ScanCase {
+            args: &["scan", "--manifest", "manifest.json"],
+            expected_input: "session=<none>, diff=<none>",
+        },
+        ScanCase {
+            args: &["scan", "--diff", "change.diff"],
+            expected_input: "session=<none>, diff=change.diff",
+        },
+        ScanCase {
+            args: &["scan", "--session", "3", "--diff", "change.diff"],
+            expected_input: "session=3, diff=change.diff",
+        },
     ] {
-        bsmell_command()
-            .args(args)
-            .assert()
-            .success()
-            .stdout(predicate::str::is_empty());
+        scan_case.assert();
     }
 }
 
 #[test]
-fn scan_json_reports_input_presence_for_every_supported_input_combination() {
-    for (args, expected_session, expected_diff) in [
-        (&["scan", "--json"][..], false, false),
-        (&["scan", "--json", "--session", "3"][..], true, false),
-        (
-            &["scan", "--json", "--manifest", "manifest.json"][..],
-            false,
-            false,
-        ),
-        (
-            &["scan", "--json", "--diff", "change.diff"][..],
-            false,
-            true,
-        ),
-        (
-            &["scan", "--json", "--session", "3", "--diff", "change.diff"][..],
-            true,
-            true,
-        ),
+fn scan_quiet_and_json_flags_keep_directive_stdout() {
+    for scan_case in [
+        ScanCase {
+            args: &["scan", "--quiet", "--reason", "review requested"],
+            expected_input: "session=<none>, diff=<none>",
+        },
+        ScanCase {
+            args: &["scan", "--json", "--reason", "review requested"],
+            expected_input: "session=<none>, diff=<none>",
+        },
+        ScanCase {
+            args: &["scan", "--quiet", "--json", "--reason", "review requested"],
+            expected_input: "session=<none>, diff=<none>",
+        },
     ] {
-        let json = scan_json(args);
-
-        assert_eq!(json["detection"], "not-run");
-        assert_eq!(json["inputs"]["session"], expected_session);
-        assert_eq!(json["inputs"]["diff"], expected_diff);
+        scan_case.assert();
     }
 }
 
@@ -161,16 +182,17 @@ fn scan_rejects_blank_reason() {
 }
 
 #[test]
-fn scan_accepts_every_non_blank_reason_shape_without_running_detection() {
+fn scan_accepts_every_non_blank_reason_shape() {
     for reason in [
         "review requested",
         " review requested ",
         "review\trequested",
     ] {
-        let json = scan_json(&["scan", "--json", "--reason", reason]);
-
-        assert_eq!(json["detection"], "not-run");
-        assert_eq!(json["reason"], "detection behavior is deferred");
+        ScanCase {
+            args: &["scan", "--reason", reason],
+            expected_input: "session=<none>, diff=<none>",
+        }
+        .assert();
     }
 }
 
