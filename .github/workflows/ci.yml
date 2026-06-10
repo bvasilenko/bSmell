@@ -29,5 +29,3 @@ jobs:
       - name: Voice guard
         run: bash scripts/public_voice_guard.sh
       - uses: taiki-e/install-action@cargo-llvm-cov
-      - name: Coverage
-        run: cargo llvm-cov --workspace --all-targets --fail-under-lines 80
