@@ -1,6 +1,6 @@
 # bsmell
 
-CLI deflection-pattern detector. Reads session text; emits flagged-pattern directive.
+Prompt lookup tool. Agent names a smell category from a fixed list of 15; bsmell returns the prompt for that smell category. The prompt tells the agent how to check the session for that smell.
 
 Built for agentic loops. Scans a session transcript or a diff buffer, matches against a closed 15-category smell taxonomy, writes a verdict on stdout, exits with a discriminating code so the calling agent can branch.
 

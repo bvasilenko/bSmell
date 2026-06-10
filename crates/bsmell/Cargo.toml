@@ -3,7 +3,7 @@ name = "bsmell"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "CLI deflection-pattern detector. Reads session text; emits flagged-pattern directive."
+description = "Prompt lookup tool. Agent names a smell category from a fixed list of 15; bsmell returns the prompt for that smell category. The prompt tells the agent how to check the session for that smell."
 repository.workspace = true
 readme = "../../README.md"
 

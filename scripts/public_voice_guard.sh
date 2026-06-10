@@ -47,7 +47,7 @@ if grep -RInE -- 'OffBrandVoiceCreep' crates/bsmell/src crates/bsmell/tests; the
   failed=1
 fi
 
-if ! grep -Fq 'CLI deflection-pattern detector. Reads session text; emits flagged-pattern directive.' crates/bsmell/Cargo.toml README.md; then
+if ! grep -Fq 'Prompt lookup tool. Agent names a smell category from a fixed list of 15; bsmell returns the prompt for that smell category. The prompt tells the agent how to check the session for that smell.' crates/bsmell/Cargo.toml README.md; then
   echo "public description missing" >&2
   failed=1
 fi
