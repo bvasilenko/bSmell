@@ -1,0 +1,27 @@
+{
+  "name": "@booga/bsmell",
+  "version": "0.1.1",
+  "description": "Prompt lookup tool. Agent names a smell category from a fixed list; bsmell returns the prompt for that smell category. The prompt tells the agent how to check the session for that smell.",
+  "bin": {
+    "bsmell": "./bin/bsmell.js"
+  },
+  "files": [
+    "bin",
+    "LICENSE",
+    "README.md"
+  ],
+  "scripts": {
+    "postinstall": "node ./bin/install.js"
+  },
+  "keywords": [
+    "cli",
+    "agent",
+    "prompt",
+    "lookup"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/bvasilenko/bSmell.git"
+  }
+}
