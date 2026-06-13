@@ -1,5 +1,8 @@
 # bsmell
 
+For agents that take shortcuts. bsmell scans an agent's session transcript or staged diff for known deflection patterns: mock-instead-of-fix, comment-out-instead-of-debug, rename-test-instead-of-resolve. Matches emit a SMELL-DETECTED directive describing the shortcut and the substantive fix. The smell taxonomy is closed (12 patterns at v0.1); the prompt library evolves continuously via empirical-lift evaluation, so the same `bsmell verify` invocation gets stricter at catching shortcuts as the corpus matures.
+
+
 Prompt lookup tool. Agent names a smell category from a fixed list; bsmell returns the prompt for that smell category. The prompt tells the agent how to check the session for that smell.
 
 Built for agentic loops. Scans a session transcript or a diff buffer, matches against a closed 15-category smell taxonomy, writes a verdict on stdout, exits with a discriminating code so the calling agent can branch.
